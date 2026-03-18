@@ -16,17 +16,13 @@
             <div style="
                 flex:1;min-width:100px;padding:10px 8px;border-radius:8px;text-align:center;
                 font-size:13px;font-weight:600;
-                background: '{{ '#0f172a' if idx == attempt_index else ('#d1fae5' if idx < attempt_index else '#f1f5f9') }}';
-                color: '{{ '#fff' if idx == attempt_index else ('#065f46' if idx < attempt_index else '#94a3b8') }}';
-                border: 1px solid '{{ '#0f172a' if idx == attempt_index else ('#a7f3d0' if idx < attempt_index else '#e2e8f0') }}';
-            "
-            style="
-                flex:1;min-width:100px;padding:10px 8px;border-radius:8px;text-align:center;
-                font-size:13px;font-weight:600;
-                {% if idx == attempt_index %}background:#0f172a;color:#fff;border:1px solid #0f172a;
-                {% elif idx < attempt_index %}background:#d1fae5;color:#065f46;border:1px solid #a7f3d0;
-                {% else %}background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;{% endif %}
-            ">
+                {% if idx == attempt_index %}
+                    background:#0f172a;color:#fff;border:1px solid #0f172a;
+                {% elif idx < attempt_index %}
+                    background:#d1fae5;color:#065f46;border:1px solid #a7f3d0;
+                {% else %}
+                    background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;
+                {% endif %}">
                 {% if idx < attempt_index %}✓ {% endif %}{{ label }}
             </div>
         {% endfor %}
@@ -37,31 +33,36 @@
             <a href="{{ url_for('welcome') }}">Return to Welcome</a> or
             <a href="{{ url_for('thank_you') }}">View Results</a>.
         </p>
+
     {% else %}
+
         <!-- Warm-Up Banner -->
         {% if is_warmup %}
         <div class="fade-in delay-1" style="
             background:#fffbeb;border:1px solid #fde68a;border-radius:10px;
-            padding:14px 18px;margin-bottom:20px;display:flex;align-items:flex-start;gap:12px;">
+            padding:14px 18px;margin-bottom:20px;
+            display:flex;align-items:flex-start;gap:12px;">
             <span style="font-size:22px;">🏋️</span>
             <div>
                 <strong style="color:#92400e;font-size:14px;">Warm-Up Attempt — Not Scored</strong>
                 <p style="margin:4px 0 0;font-size:13px;color:#78350f;">
                     This is your practice round. Take your time to get comfortable.
-                    Your results here will <strong>not</strong> be recorded. The real test starts after this.
+                    Your results here will <strong>not</strong> be recorded.
+                    The real test starts after this.
                 </p>
             </div>
         </div>
         {% else %}
         <div class="fade-in delay-1" style="
             background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;
-            padding:14px 18px;margin-bottom:20px;display:flex;align-items:flex-start;gap:12px;">
+            padding:14px 18px;margin-bottom:20px;
+            display:flex;align-items:flex-start;gap:12px;">
             <span style="font-size:22px;">📝</span>
             <div>
                 <strong style="color:#1e40af;font-size:14px;">{{ attempt_label }} — Scored</strong>
                 <p style="margin:4px 0 0;font-size:13px;color:#1e3a8a;">
                     This attempt is recorded. Type as accurately and quickly as you can.
-                    {% if attempt_index == 1 %}Type: Easy &nbsp;|&nbsp; Time: 5 minutes
+                    {% if attempt_index == 1 %}Type: Easy &nbsp;|&nbsp; Time: 2 minutes
                     {% elif attempt_index == 2 %}Type: Medium &nbsp;|&nbsp; Time: 2 minutes
                     {% elif attempt_index == 3 %}Type: Hard &nbsp;|&nbsp; Time: 2 minutes
                     {% endif %}
@@ -70,23 +71,79 @@
         </div>
         {% endif %}
 
+        <!-- 5-Second Countdown Overlay -->
+        <div id="countdownOverlay" style="
+            position:fixed;inset:0;
+            background:rgba(8,14,56,0.72);
+            backdrop-filter:blur(6px);
+            z-index:1500;
+            display:flex;flex-direction:column;
+            align-items:center;justify-content:center;
+            gap:16px;">
+
+            <div style="
+                font-size:11px;font-weight:700;letter-spacing:0.12em;
+                text-transform:uppercase;color:rgba(255,255,255,0.55);">
+                {{ attempt_label }} — Starting in
+            </div>
+
+            <div id="countdownNumber" style="
+                font-family:'DM Mono',monospace;
+                font-size:6rem;font-weight:800;
+                color:#fff;line-height:1;
+                text-shadow:0 0 40px rgba(20,168,159,0.6);">
+                5
+            </div>
+
+            <div style="
+                width:120px;height:4px;
+                background:rgba(255,255,255,0.15);
+                border-radius:99px;overflow:hidden;
+                margin-top:8px;">
+                <div id="countdownBar" style="
+                    height:100%;width:100%;
+                    background:linear-gradient(90deg,#14a89f,#3b5fe0);
+                    border-radius:99px;
+                    transition:width 1s linear;">
+                </div>
+            </div>
+
+            <div style="
+                font-size:13px;color:rgba(255,255,255,0.45);
+                margin-top:4px;">
+                Get ready to type…
+            </div>
+        </div>
+
+        <!-- Test Card -->
         <div class="card fade-in delay-2">
-            <!-- Hidden attempt info display -->
+
+            <!-- Attempt info pills -->
             <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
-                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;font-size:13px;">
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;
+                    border-radius:8px;padding:10px 16px;font-size:13px;">
                     <span style="color:#64748b;">Attempt:</span>
                     <strong style="color:#0f172a;margin-left:6px;">{{ attempt_label }}</strong>
                 </div>
-                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;font-size:13px;">
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;
+                    border-radius:8px;padding:10px 16px;font-size:13px;">
                     <span style="color:#64748b;">Time Limit:</span>
                     <strong style="color:#0f172a;margin-left:6px;">
-                        {% if time_limit == 300 %}5 Minutes{% elif time_limit == 120 %}2 Minutes{% else %}{{ time_limit // 60 }} Minutes{% endif %}
+                        {% if time_limit == 300 %}5 Minutes
+                        {% elif time_limit == 120 %}2 Minutes
+                        {% else %}{{ time_limit // 60 }} Minutes
+                        {% endif %}
                     </strong>
                 </div>
-                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;font-size:13px;">
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;
+                    border-radius:8px;padding:10px 16px;font-size:13px;">
                     <span style="color:#64748b;">Type:</span>
                     <strong style="color:#0f172a;margin-left:6px;">
-                        {% if is_warmup %}Practice{% elif difficulty == 'easy' %}Type 1{% elif difficulty == 'medium' %}Type 2{% else %}Type 3{% endif %}
+                        {% if is_warmup %}Practice
+                        {% elif difficulty == 'easy' %}Type 1
+                        {% elif difficulty == 'medium' %}Type 2
+                        {% else %}Type 3
+                        {% endif %}
                     </strong>
                 </div>
             </div>
@@ -94,63 +151,67 @@
             <div class="sample-text" id="sample-text" data-text="{{ paragraph|safe }}"></div>
 
             <form id="typingForm" method="POST" action="{{ url_for('typing_test') }}" autocomplete="off">
-                <input type="hidden" name="user_name" value="{{ name }}" autocomplete="off">
-                <input type="hidden" name="selected_paragraph" id="selected_paragraph" value="{{ paragraph|safe }}" autocomplete="off">
-                <input type="hidden" name="difficulty" value="{{ difficulty }}" autocomplete="off">
-                <input type="hidden" name="time_limit" id="form_time_limit" value="{{ time_limit }}" autocomplete="off">
+                <input type="hidden" name="user_name"           value="{{ name }}"          autocomplete="off">
+                <input type="hidden" name="selected_paragraph"  id="selected_paragraph"     value="{{ paragraph|safe }}" autocomplete="off">
+                <input type="hidden" name="difficulty"          value="{{ difficulty }}"     autocomplete="off">
+                <input type="hidden" name="time_limit"          id="form_time_limit"        value="{{ time_limit }}"     autocomplete="off">
                 <div class="form-group">
                     <label for="user_input" class="label">Type the text here:</label>
-                    <textarea id="user_input" name="user_input" aria-label="Typing input"
+                    <textarea id="user_input" name="user_input"
+                        aria-label="Typing input"
                         placeholder="Start typing to begin the test..."
-                        autocomplete="off" autocorrect="off" autocapitalize="off"
-                        spellcheck="false" required></textarea>
+                        autocomplete="off" autocorrect="off"
+                        autocapitalize="off" spellcheck="false"
+                        required></textarea>
                 </div>
                 <div class="stats" id="stats">WPM: 0 | Accuracy: 0%</div>
                 <div class="timer" id="timer">
                     Time Remaining:
                     {{ time_limit // 60 }}:{{ '%02d' | format(time_limit % 60) }}
                 </div>
-                <input type="hidden" name="wpm" id="wpm" autocomplete="off">
+                <input type="hidden" name="wpm"      id="wpm"      autocomplete="off">
                 <input type="hidden" name="accuracy" id="accuracy" autocomplete="off">
-                <button type="submit" class="btn" id="submitBtn" style="display:none;">Submit</button>
                 <div class="submission-loader" id="loader"></div>
             </form>
         </div>
+
     {% endif %}
 
     <!-- Previous scored attempts table -->
     {% if typing_results %}
     <h2 class="fade-in delay-2">Scored Attempts</h2>
     <div class="card fade-in delay-2">
-        <table class="results-table">
-            <thead>
-                <tr>
-                    <th>Attempt</th>
-                    <th>WPM</th>
-                    <th>Accuracy</th>
-                    <th>Time Limit</th>
-                    <th>Type</th>
-                    <th>Test Date</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for result in typing_results %}
-                <tr>
-                    <td>
-                        {% if result.attempt == 1 %}First
-                        {% elif result.attempt == 2 %}Second
-                        {% elif result.attempt == 3 %}Third
-                        {% else %}{{ result.attempt }}{% endif %}
-                    </td>
-                    <td>{{ result.wpm }}</td>
-                    <td>{{ result.accuracy }}%</td>
-                    <td>{{ result.time_limit // 60 }}:{{ '%02d' | format(result.time_limit % 60) }}</td>
-                    <td>{{ result.difficulty|capitalize }}</td>
-                    <td>{{ result.test_date }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div style="overflow-x:auto;">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>Attempt</th>
+                        <th>WPM</th>
+                        <th>Accuracy</th>
+                        <th>Time Limit</th>
+                        <th>Type</th>
+                        <th>Test Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for result in typing_results %}
+                    <tr>
+                        <td>
+                            {% if result.attempt == 1 %}First
+                            {% elif result.attempt == 2 %}Second
+                            {% elif result.attempt == 3 %}Third
+                            {% else %}{{ result.attempt }}{% endif %}
+                        </td>
+                        <td>{{ result.wpm }}</td>
+                        <td>{{ result.accuracy }}%</td>
+                        <td>{{ result.time_limit // 60 }}:{{ '%02d' | format(result.time_limit % 60) }}</td>
+                        <td>{{ result.difficulty | capitalize }}</td>
+                        <td>{{ result.test_date }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
     {% endif %}
 
@@ -160,10 +221,73 @@
     {% if messages %}
     <div class="flash-messages">
         {% for category, message in messages %}
-        <p class="alert alert-{{ 'success' if category == 'success' else ('info' if category == 'info' else 'error') }}">{{ message }}</p>
+        <p class="alert alert-{{
+            'success' if category == 'success' else
+            ('info'    if category == 'info'    else 'error') }}">
+            {{ message }}
+        </p>
         {% endfor %}
     </div>
     {% endif %}
     {% endwith %}
+
 </div>
+
+<!-- Countdown script — runs before typing_test.js timer starts -->
+{% if not session.get('typing_completed', False) %}
+<script>
+(function () {
+    const overlay  = document.getElementById('countdownOverlay');
+    const number   = document.getElementById('countdownNumber');
+    const bar      = document.getElementById('countdownBar');
+    const textarea = document.getElementById('user_input');
+
+    if (!overlay) return;
+
+    // Disable textarea during countdown
+    if (textarea) textarea.setAttribute('disabled', 'true');
+
+    let count = 5;
+
+    function tick() {
+        number.textContent = count;
+        bar.style.width    = (count / 5 * 100) + '%';
+
+        // Colour shifts as time gets close
+        if (count <= 2) {
+            number.style.color      = '#f87171';
+            number.style.textShadow = '0 0 40px rgba(239,68,68,0.7)';
+        } else if (count <= 3) {
+            number.style.color      = '#fbbf24';
+            number.style.textShadow = '0 0 40px rgba(251,191,36,0.6)';
+        } else {
+            number.style.color      = '#fff';
+            number.style.textShadow = '0 0 40px rgba(20,168,159,0.6)';
+        }
+
+        if (count <= 0) {
+            // Fade out overlay
+            overlay.style.transition = 'opacity 0.3s ease';
+            overlay.style.opacity    = '0';
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                // Re-enable and focus textarea
+                if (textarea) {
+                    textarea.removeAttribute('disabled');
+                    textarea.focus();
+                }
+            }, 300);
+            return;
+        }
+
+        count--;
+        setTimeout(tick, 1000);
+    }
+
+    // Start immediately on page load
+    tick();
+})();
+</script>
+{% endif %}
+
 {% endblock %}

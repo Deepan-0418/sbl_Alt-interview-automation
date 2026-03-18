@@ -113,7 +113,6 @@ document.addEventListener('DOMContentLoaded', () => {
         startTime = Date.now();
         isTestStarted = true;
         isTestRunning = true;
-        if (submitBtn) submitBtn.style.display = 'inline-flex';
         if (statsDiv)  statsDiv.textContent = 'WPM: 0 | Accuracy: 100%';
         if (timerDiv)  timerDiv.textContent = formatTime(TIME_LIMIT_SECONDS);
 
@@ -245,25 +244,5 @@ document.addEventListener('DOMContentLoaded', () => {
         if (wpmInput)      { wpmInput.value = wpm;           disableAutofillAndSuggestions([wpmInput]); }
         if (accuracyInput) { accuracyInput.value = accuracy; disableAutofillAndSuggestions([accuracyInput]); }
         if (timerDiv)      timerDiv.textContent = formatTime(remainingTime);
-    }
-
-    if (submitBtn) {
-        submitBtn.addEventListener('click', () => {
-            if (!startTime || !isTestRunning) {
-                if (statsDiv) statsDiv.textContent = 'Please start typing to begin the test.';
-                return;
-            }
-            clearInterval(timerInterval);
-            isTestRunning = false;
-            const wpm      = calculateWPM();
-            const accuracy = calculateAccuracy();
-            if (wpmInput)      { wpmInput.value = wpm;           disableAutofillAndSuggestions([wpmInput]); }
-            if (accuracyInput) { accuracyInput.value = accuracy; disableAutofillAndSuggestions([accuracyInput]); }
-            if (statsDiv)  statsDiv.textContent = `Final: WPM: ${wpm} | Accuracy: ${accuracy}%`;
-            if (timerDiv)  timerDiv.textContent = 'Time Remaining: 0:00';
-            highlightCurrentWord();
-            if (userInput) userInput.disabled = true;
-            if (typingForm) typingForm.submit();
-        });
     }
 });

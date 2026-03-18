@@ -24,7 +24,7 @@ if getattr(sys, 'frozen', False):
     # Running as a PyInstaller .exe
     import shutil
     base_path = sys._MEIPASS
-    user_dir = os.path.join(os.path.expanduser("~"), "InterviewAutomation")
+    user_dir  = os.path.join(os.path.expanduser("~"), "InterviewAutomation")
     if not os.path.exists(user_dir):
         os.makedirs(user_dir)
 
@@ -64,9 +64,9 @@ app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'xlsx'}
 # ── Load data.json ─────────────────────────────────────────────
 data_file_path = writable_data_json
 
-SAMPLE_PARAGRAPHS    = {'easy': [], 'medium': [], 'hard': []}
-HANDWRITTEN_TEXTS    = []
-EXCEL_QUIZ_QUESTIONS = []
+SAMPLE_PARAGRAPHS     = {'easy': [], 'medium': [], 'hard': []}
+HANDWRITTEN_TEXTS     = []
+EXCEL_QUIZ_QUESTIONS  = []
 EXCEL_PRACTICAL_TASKS = []
 
 if not os.path.exists(data_file_path):
@@ -88,10 +88,19 @@ else:
 app.jinja_env.filters['timestamp'] = lambda _: str(int(time()))
 
 # ── Admin credentials ──────────────────────────────────────────
-ADMIN_CREDENTIALS = {
-    'username': os.environ.get('ADMIN_USERNAME', 'admin'),
-    'password': os.environ.get('ADMIN_PASSWORD', '$ecret@123'),
-}
+# Username: set via ADMIN_USERNAME env var, defaults to 'admin'
+# Password: checked fresh at every login — defaults to today's date
+#           in YYYYMMDD format (e.g. 20260318), auto-updates daily.
+#           Override by setting ADMIN_PASSWORD env var on Render.
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
+
+def get_admin_password():
+    """
+    Returns the admin password checked fresh on every login.
+    Default: today's date as YYYYMMDD — updates automatically at midnight.
+    Override: set the ADMIN_PASSWORD environment variable for a fixed password.
+    """
+    return os.environ.get('ADMIN_PASSWORD', 'Admin@' + datetime.now().strftime('%Y%m%d'))
 
 # ── Initialize database ────────────────────────────────────────
 with app.app_context():
@@ -99,10 +108,10 @@ with app.app_context():
 
 # ── Typing attempt config ──────────────────────────────────────
 ATTEMPT_CONFIG = [
-    {'label': 'Warm-Up',       'difficulty': 'easy',   'time_limit': 300, 'scored': False},
-    {'label': 'First Attempt', 'difficulty': 'easy',   'time_limit': 120, 'scored': True},
-    {'label': 'Second Attempt','difficulty': 'medium',  'time_limit': 120, 'scored': True},
-    {'label': 'Third Attempt', 'difficulty': 'hard',    'time_limit': 120, 'scored': True},
+    {'label': 'Warm-Up',        'difficulty': 'easy',   'time_limit': 300, 'scored': False},
+    {'label': 'First Attempt',  'difficulty': 'easy',   'time_limit': 120, 'scored': True},
+    {'label': 'Second Attempt', 'difficulty': 'medium', 'time_limit': 120, 'scored': True},
+    {'label': 'Third Attempt',  'difficulty': 'hard',   'time_limit': 120, 'scored': True},
 ]
 
 
@@ -119,7 +128,7 @@ def generate_excel_template():
     """Generate an Excel template with task descriptions from EXCEL_PRACTICAL_TASKS."""
     workbook = openpyxl.Workbook()
 
-    sheet1  = workbook.active;          sheet1.title  = "Function"
+    sheet1  = workbook.active; sheet1.title = "Function"
     sheet2  = workbook.create_sheet("Sort")
     sheet3  = workbook.create_sheet("Replace")
     sheet4  = workbook.create_sheet("Concatenate")
@@ -177,7 +186,7 @@ def validate_excel_against_master(user_file_path, master_file_path):
         master_wb = openpyxl.load_workbook(master_file_path, data_only=True)
 
         if (not all(n in user_wb.sheetnames   for n in sheet_names) or
-            not all(n in master_wb.sheetnames for n in sheet_names)):
+                not all(n in master_wb.sheetnames for n in sheet_names)):
             logger.error("Sheet mismatch between user and master files")
             return 0.0, {n: 0 for n in sheet_names}
 
@@ -219,15 +228,18 @@ def validate_excel_against_master(user_file_path, master_file_path):
 @app.route('/admin_login', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        if (username == ADMIN_CREDENTIALS['username'] and
-                password == ADMIN_CREDENTIALS['password']):
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+
+        # Password checked fresh on every login — updates automatically each day
+        if username == ADMIN_USERNAME and password == get_admin_password():
             session['admin_logged_in'] = True
             flash('Login successful!', 'success')
             return redirect(url_for('admin_dashboard'))
+
         flash('Invalid credentials.', 'error')
         return redirect(url_for('admin_login'))
+
     return render_template('admin_login.html')
 
 
@@ -249,7 +261,6 @@ def admin_dashboard():
                     flash('Warning: excel_practical_tasks is empty or missing.', 'warning')
                 with open(data_file_path, 'w', encoding='utf-8') as f:
                     json.dump(new_data, f, indent=4)
-
                 SAMPLE_PARAGRAPHS     = new_data.get('sample_paragraphs',    {'easy': [], 'medium': [], 'hard': []})
                 HANDWRITTEN_TEXTS     = new_data.get('handwritten_texts',    [])
                 EXCEL_QUIZ_QUESTIONS  = new_data.get('excel_quiz_questions', [])
@@ -269,13 +280,11 @@ def admin_dashboard():
                 filename  = secure_filename(file.filename)
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(file_path)
-
                 with open(data_file_path, 'r', encoding='utf-8') as f:
                     d = json.load(f)
                 d['handwritten_texts'].append({'image': filename, 'text': handwritten_text})
                 with open(data_file_path, 'w', encoding='utf-8') as f:
                     json.dump(d, f, indent=4)
-
                 HANDWRITTEN_TEXTS.append({'image': filename, 'text': handwritten_text})
                 flash('Image uploaded and data.json updated!', 'success')
             else:
@@ -312,7 +321,7 @@ def admin_dashboard():
     return render_template(
         'admin_dashboard.html',
         data_json=json.dumps(data_json, indent=4),
-        image_files=image_files
+        image_files=image_files,
     )
 
 
@@ -399,27 +408,27 @@ def signup():
         )
 
         session.update({
-            'user_name':                name,
-            'location':                 location,
-            'distance':                 distance,
-            'attempt_number':           attempt_number,
-            'dob':                      dob,
-            'signup_date':              signup_date,
-            'handwritten_completed':    False,
-            'typing_completed':         False,
-            'typing_attempts':          0,
-            'typing_results':           [],
-            'excel_quiz_completed':     False,
-            'excel_practical_completed':False,
-            'current_image_index':      0,
-            'handwritten_results':      [],
-            'excel_quiz_results':       [],
-            'excel_quiz_questions':     [],
-            'selected_excel_questions': selected_excel_questions,
-            'excel_practical_results':  [],
-            'excel_practical_file':     None,
-            'excel_practical_score':    None,
-            'excel_sheet_scores':       None,
+            'user_name':                 name,
+            'location':                  location,
+            'distance':                  distance,
+            'attempt_number':            attempt_number,
+            'dob':                       dob,
+            'signup_date':               signup_date,
+            'handwritten_completed':     False,
+            'typing_completed':          False,
+            'typing_attempts':           0,
+            'typing_results':            [],
+            'excel_quiz_completed':      False,
+            'excel_practical_completed': False,
+            'current_image_index':       0,
+            'handwritten_results':       [],
+            'excel_quiz_results':        [],
+            'excel_quiz_questions':      [],
+            'selected_excel_questions':  selected_excel_questions,
+            'excel_practical_results':   [],
+            'excel_practical_file':      None,
+            'excel_practical_score':     None,
+            'excel_sheet_scores':        None,
         })
 
         insert_user(name, signup_date, location, distance, attempt_number, dob)
@@ -455,7 +464,7 @@ def handwritten_round():
         )
         session['current_image_index'] = 0
 
-    current_index           = session.get('current_image_index', 0)
+    current_index              = session.get('current_image_index', 0)
     selected_handwritten_texts = session.get('selected_handwritten_texts', [])
 
     if not selected_handwritten_texts or current_index >= len(selected_handwritten_texts):
@@ -511,9 +520,9 @@ def submit_handwritten():
     session.modified = True
 
     response = {
-        'completed':     session.get('handwritten_completed', False),
-        'next_image':    next_image,
-        'next_image_url':next_image_url,
+        'completed':      session.get('handwritten_completed', False),
+        'next_image':     next_image,
+        'next_image_url': next_image_url,
     }
     if response['completed']:
         response['redirect'] = (
@@ -663,10 +672,10 @@ def excel_quiz():
             if is_correct:
                 score += 1
             results.append({
-                'question':      question['question'],
-                'user_answer':   user_answer,
-                'correct_answer':question['correct'],
-                'status':        'Correct' if is_correct else 'Incorrect',
+                'question':       question['question'],
+                'user_answer':    user_answer,
+                'correct_answer': question['correct'],
+                'status':         'Correct' if is_correct else 'Incorrect',
             })
 
         session['excel_quiz_results']   = results
@@ -757,16 +766,13 @@ def excel_practical():
                 file_path, master_file_path
             )
 
-            session['excel_practical_file']     = filename
-            session['excel_practical_score']    = quality_score
-            session['excel_sheet_scores']       = sheet_scores
-            session['excel_practical_completed']= True
+            session['excel_practical_file']      = filename
+            session['excel_practical_score']     = quality_score
+            session['excel_sheet_scores']        = sheet_scores
+            session['excel_practical_completed'] = True
             session.modified = True
 
-            flash(
-                f'File uploaded! Overall Quality Score: {quality_score}%',
-                'success'
-            )
+            flash(f'File uploaded! Overall Quality Score: {quality_score}%', 'success')
             if (session.get('handwritten_completed') and
                     session.get('typing_completed') and
                     session.get('excel_quiz_completed')):
