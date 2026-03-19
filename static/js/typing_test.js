@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+
     function disableAutofillAndSuggestions(elements) {
         elements.forEach(element => {
             element.setAttribute('autocomplete', 'off');
@@ -10,53 +11,121 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const submitBtn           = document.getElementById('submitBtn');
-    const userInput           = document.getElementById('user_input');
-    const formTimeLimit       = document.getElementById('form_time_limit');   // fixed value from server
-    const wpmInput            = document.getElementById('wpm');
-    const accuracyInput       = document.getElementById('accuracy');
-    const statsDiv            = document.getElementById('stats');
-    const timerDiv            = document.getElementById('timer');
+    const userInput              = document.getElementById('user_input');
+    const formTimeLimit          = document.getElementById('form_time_limit');
+    const wpmInput               = document.getElementById('wpm');
+    const accuracyInput          = document.getElementById('accuracy');
+    const statsDiv               = document.getElementById('stats');
+    const timerDiv               = document.getElementById('timer');
     const selectedParagraphInput = document.getElementById('selected_paragraph');
-    const sampleTextContainer = document.querySelector('.sample-text');
-    const typingForm          = document.getElementById('typingForm');
+    const sampleTextContainer    = document.querySelector('.sample-text');
+    const typingForm             = document.getElementById('typingForm');
 
-    // Read fixed time limit from hidden field (set by server, never changes)
+    // Fixed time limit from server — never changes during a session
     const TIME_LIMIT_SECONDS = formTimeLimit ? parseInt(formTimeLimit.value) : 300;
 
-    const formElements = document.querySelectorAll('#typingForm input, #typingForm textarea');
-    disableAutofillAndSuggestions(formElements);
+    disableAutofillAndSuggestions(
+        document.querySelectorAll('#typingForm input, #typingForm textarea')
+    );
 
     let startTime        = null;
     let timerInterval    = null;
     let isTestRunning    = false;
     let isTestStarted    = false;
-    let sampleText       = sampleTextContainer ? sampleTextContainer.dataset.text.replace(/\s+/g, ' ').trim() : '';
-    let sampleWords      = sampleText ? sampleText.split(/\s+/).filter(w => w.length > 0) : [];
+
+    let sampleText  = sampleTextContainer
+        ? sampleTextContainer.dataset.text.replace(/\s+/g, ' ').trim()
+        : '';
+    let sampleWords = sampleText
+        ? sampleText.split(/\s+/).filter(w => w.length > 0)
+        : [];
+
     let currentWordIndex = 0;
     let correctWords     = 0;
     let totalWordsTyped  = 0;
+    let wordResults      = []; // true/false per submitted word index
+    let lastSpaceCount   = 0;  // tracks how many spaces have been submitted
+
     let lines            = [];
     let currentLineIndex = 0;
     const maxLines       = 4;
 
+    // ── Line creation ─────────────────────────────────────────
     function createLines() {
         lines = [];
-        let words = [...sampleWords];
-        let currentLine = [];
+        let currentLine   = [];
         let lineWordCount = 0;
         const wordsPerLine = 10;
-        for (let i = 0; i < words.length; i++) {
-            currentLine.push(words[i]);
+
+        for (let i = 0; i < sampleWords.length; i++) {
+            currentLine.push(sampleWords[i]);
             lineWordCount++;
-            if (lineWordCount >= wordsPerLine || i === words.length - 1) {
-                lines.push({ words: currentLine, startWordIndex: i - lineWordCount + 1 });
-                currentLine = [];
+            if (lineWordCount >= wordsPerLine || i === sampleWords.length - 1) {
+                lines.push({
+                    words:          currentLine,
+                    startWordIndex: i - lineWordCount + 1,
+                });
+                currentLine   = [];
                 lineWordCount = 0;
             }
         }
     }
 
+    // ── Render visible lines ──────────────────────────────────
+    function displayCurrentLines() {
+        if (currentLineIndex < lines.length) {
+            const visibleLines = lines.slice(currentLineIndex, currentLineIndex + maxLines);
+            sampleTextContainer.innerHTML = visibleLines
+                .map(line =>
+                    `<div class="line">${line.words
+                        .map((word, wordIdx) => {
+                            const gi = line.startWordIndex + wordIdx;
+                            return `<span class="word" data-index="${gi}">${word}</span>`;
+                        })
+                        .join('&nbsp;')}</div>`
+                )
+                .join('');
+            highlightCurrentWord();
+        } else {
+            finishTest();
+        }
+    }
+
+    // ── Word highlighting ─────────────────────────────────────
+    function highlightCurrentWord() {
+        if (!sampleTextContainer) return;
+        const spans = sampleTextContainer.querySelectorAll('span.word');
+
+        spans.forEach(span => {
+            const gi = parseInt(span.dataset.index);
+            span.classList.remove('current', 'correct', 'incorrect');
+
+            if (gi === currentWordIndex) {
+                span.classList.add('current');
+            } else if (gi < currentWordIndex) {
+                span.classList.add(wordResults[gi] === true ? 'correct' : 'incorrect');
+            }
+        });
+    }
+
+    // ── Finish test ───────────────────────────────────────────
+    function finishTest() {
+        clearInterval(timerInterval);
+        isTestRunning = false;
+        if (userInput) userInput.disabled = true;
+
+        const wpm      = calculateWPM();
+        const accuracy = calculateAccuracy();
+
+        if (wpmInput)      { wpmInput.value = wpm;           disableAutofillAndSuggestions([wpmInput]); }
+        if (accuracyInput) { accuracyInput.value = accuracy; disableAutofillAndSuggestions([accuracyInput]); }
+        if (statsDiv)  statsDiv.textContent = `Completed! WPM: ${wpm} | Accuracy: ${accuracy}%`;
+        if (timerDiv)  timerDiv.textContent = 'Time Remaining: 0:00';
+
+        if (typingForm) typingForm.submit();
+    }
+
+    // ── Init ──────────────────────────────────────────────────
     function initializeSampleText() {
         if (sampleTextContainer && sampleText) {
             createLines();
@@ -68,96 +137,76 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function displayCurrentLines() {
-        if (currentLineIndex < lines.length) {
-            const visibleLines = lines.slice(currentLineIndex, currentLineIndex + maxLines);
-            sampleTextContainer.innerHTML = visibleLines.map(line =>
-                `<div class="line">${line.words.map((word, wordIdx) => {
-                    const globalWordIndex = line.startWordIndex + wordIdx;
-                    return `<span class="word" data-index="${globalWordIndex}">${word}</span>`;
-                }).join('&nbsp;')}</div>`
-            ).join('');
-            highlightCurrentWord();
-        } else {
-            // Paragraph fully typed — submit immediately
-            clearInterval(timerInterval);
-            isTestRunning = false;
-            if (userInput) userInput.disabled = true;
-            const wpm      = calculateWPM();
-            const accuracy = calculateAccuracy();
-            if (wpmInput)      { wpmInput.value = wpm;           disableAutofillAndSuggestions([wpmInput]); }
-            if (accuracyInput) { accuracyInput.value = accuracy; disableAutofillAndSuggestions([accuracyInput]); }
-            if (statsDiv)  statsDiv.textContent  = `Paragraph completed! WPM: ${wpm} | Accuracy: ${accuracy}%`;
-            if (timerDiv)  timerDiv.textContent  = 'Time Remaining: 0:00';
-            if (typingForm) typingForm.submit();
-        }
-    }
-
-    function highlightCurrentWord() {
-        const spans      = sampleTextContainer.querySelectorAll('span.word');
-        const inputWords = userInput ? userInput.value.trim().split(/\s+/).filter(w => w.length > 0) : [];
-        spans.forEach(span => {
-            const globalIndex = parseInt(span.dataset.index);
-            span.classList.remove('current', 'correct', 'incorrect');
-            if (globalIndex === currentWordIndex) {
-                span.classList.add('current');
-            } else if (globalIndex < currentWordIndex && globalIndex < inputWords.length) {
-                span.classList.add(inputWords[globalIndex] === sampleWords[globalIndex] ? 'correct' : 'incorrect');
-            }
-        });
-    }
-
     initializeSampleText();
 
+    // ── Timer ─────────────────────────────────────────────────
     function startTimer() {
-        startTime = Date.now();
+        startTime     = Date.now();
         isTestStarted = true;
         isTestRunning = true;
-        if (statsDiv)  statsDiv.textContent = 'WPM: 0 | Accuracy: 100%';
-        if (timerDiv)  timerDiv.textContent = formatTime(TIME_LIMIT_SECONDS);
+
+        if (statsDiv) statsDiv.textContent = 'WPM: 0 | Accuracy: 100%';
+        if (timerDiv) timerDiv.textContent = formatTime(TIME_LIMIT_SECONDS);
 
         timerInterval = setInterval(() => {
             const elapsed = (Date.now() - startTime) / 1000;
             if (elapsed >= TIME_LIMIT_SECONDS) {
-                clearInterval(timerInterval);
-                isTestRunning = false;
-                if (userInput) userInput.disabled = true;
-                const wpm      = calculateWPM();
-                const accuracy = calculateAccuracy();
-                if (wpmInput)      { wpmInput.value = wpm;           disableAutofillAndSuggestions([wpmInput]); }
-                if (accuracyInput) { accuracyInput.value = accuracy; disableAutofillAndSuggestions([accuracyInput]); }
-                if (statsDiv)  statsDiv.textContent = `Time's up! WPM: ${wpm} | Accuracy: ${accuracy}%`;
-                if (timerDiv)  timerDiv.textContent = 'Time Remaining: 0:00';
-                highlightCurrentWord();
-                if (typingForm) typingForm.submit();
+                finishTest();
             } else {
                 updateStats();
             }
         }, 500);
     }
 
+    // ── Get the word the user is currently typing ─────────────
+    // The textarea accumulates all words separated by spaces.
+    // The "current word" is everything after the last space.
+    function getCurrentWordFromInput() {
+        if (!userInput) return '';
+        const val   = userInput.value;
+        const parts = val.split(' ');
+        return parts[parts.length - 1];
+    }
+
+    // ── Keyboard handling ─────────────────────────────────────
     if (userInput) {
         disableAutofillAndSuggestions([userInput]);
+
         userInput.addEventListener('copy',  e => e.preventDefault());
         userInput.addEventListener('paste', e => e.preventDefault());
         userInput.addEventListener('cut',   e => e.preventDefault());
 
         userInput.addEventListener('keydown', e => {
-            // Start timer on first real keypress
-            if (!isTestStarted && !['Backspace','Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) {
-                startTimer();
-            }
 
-            if (!isTestRunning) return;
-
+            // ── Space: advance word ───────────────────────────
             if (e.key === ' ') {
-                const inputText  = userInput.value.trim();
-                const inputWords = inputText.split(/\s+/).filter(w => w.length > 0);
-                const currentInput = inputWords[inputWords.length - 1] || '';
-                if (currentInput.length > 0 && currentWordIndex < sampleWords.length) {
-                    if (currentInput === sampleWords[currentWordIndex]) correctWords++;
+                const currentInput = getCurrentWordFromInput();
+
+                // Block double-space — ignore if no word has been typed yet
+                if (currentInput.length === 0) {
+                    e.preventDefault();
+                    return;
+                }
+
+                // Start timer on first word submission if not already started
+                if (!isTestStarted) startTimer();
+                if (!isTestRunning) {
+                    e.preventDefault();
+                    return;
+                }
+
+                if (currentWordIndex < sampleWords.length) {
+                    // Record result for this word
+                    const wasCorrect = currentInput === sampleWords[currentWordIndex];
+                    wordResults[currentWordIndex] = wasCorrect;
+                    if (wasCorrect) correctWords++;
                     totalWordsTyped++;
                     currentWordIndex++;
+                    lastSpaceCount++;
+
+                    // Allow the space to be added naturally to the textarea
+                    // so the user sees their typed history — do NOT preventDefault here
+
                     // Scroll lines if needed
                     let lastVisibleWordIndex = -1;
                     const visibleLines = lines.slice(currentLineIndex, currentLineIndex + maxLines);
@@ -165,29 +214,53 @@ document.addEventListener('DOMContentLoaded', () => {
                         const lastLine = visibleLines[visibleLines.length - 1];
                         lastVisibleWordIndex = lastLine.startWordIndex + lastLine.words.length - 1;
                     }
-                    if (currentWordIndex > lastVisibleWordIndex && currentLineIndex + maxLines < lines.length) {
+                    if (
+                        currentWordIndex > lastVisibleWordIndex &&
+                        currentLineIndex + maxLines < lines.length
+                    ) {
                         currentLineIndex++;
                         displayCurrentLines();
+                    } else if (currentWordIndex >= sampleWords.length) {
+                        finishTest();
+                        return;
                     }
+
                     highlightCurrentWord();
                     updateStats();
-                    return;
+                } else {
+                    e.preventDefault();
                 }
-                e.preventDefault();
                 return;
             }
 
+            // ── Start timer on first real keypress ───────────
+            if (
+                !isTestStarted &&
+                !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight',
+                  'ArrowUp', 'ArrowDown'].includes(e.key)
+            ) {
+                startTimer();
+            }
+
+            if (!isTestRunning) return;
+
+            // ── Backspace: restrict to current word only ──────
+            // Prevent deleting into previously submitted words
             if (e.key === 'Backspace') {
-                const inputText  = userInput.value;
-                const cursorPos  = userInput.selectionStart;
-                const inputWords = inputText.split(/\s+/).filter(w => w.length > 0);
-                const previousWords = inputWords.slice(0, Math.min(inputWords.length, currentWordIndex)).join(' ');
-                const boundary = previousWords.length + (inputWords.length > currentWordIndex ? 1 : 0);
-                if (cursorPos <= boundary) e.preventDefault();
+                const val       = userInput.value;
+                const cursorPos = userInput.selectionStart;
+                // The boundary is the position right after the last space
+                const lastSpacePos = val.lastIndexOf(' ');
+                const boundary     = lastSpacePos + 1; // can't go before this
+                if (cursorPos <= boundary) {
+                    e.preventDefault();
+                }
                 return;
             }
 
-            if (['Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) {
+            // ── Block navigation keys ─────────────────────────
+            if (['Delete', 'ArrowLeft', 'ArrowRight',
+                 'ArrowUp', 'ArrowDown'].includes(e.key)) {
                 e.preventDefault();
             }
         });
@@ -216,6 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ── Helpers ───────────────────────────────────────────────
     function formatTime(seconds) {
         const m = Math.floor(seconds / 60);
         const s = Math.floor(seconds % 60);
@@ -224,8 +298,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function calculateWPM() {
         if (!startTime) return 0;
-        const elapsed  = Math.min((Date.now() - startTime) / 1000, TIME_LIMIT_SECONDS);
-        const minutes  = elapsed / 60;
+        const elapsed = Math.min((Date.now() - startTime) / 1000, TIME_LIMIT_SECONDS);
+        const minutes = elapsed / 60;
         return minutes > 0 ? Math.round(correctWords / minutes) : 0;
     }
 
@@ -240,9 +314,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const wpm           = calculateWPM();
         const accuracy      = calculateAccuracy();
         const remainingTime = Math.max(0, TIME_LIMIT_SECONDS - elapsed);
+
         if (statsDiv)      statsDiv.textContent = `WPM: ${wpm} | Accuracy: ${accuracy}%`;
         if (wpmInput)      { wpmInput.value = wpm;           disableAutofillAndSuggestions([wpmInput]); }
         if (accuracyInput) { accuracyInput.value = accuracy; disableAutofillAndSuggestions([accuracyInput]); }
         if (timerDiv)      timerDiv.textContent = formatTime(remainingTime);
     }
+
 });
