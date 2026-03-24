@@ -64,19 +64,94 @@
 </div>
 
 <div class="card fade-in delay-2">
+
     <!-- Image display — served from /uploads/ route (user_dir) -->
     <div style="background:var(--gray-50);border:1px solid var(--gray-200);
         border-radius:var(--r-lg);padding:var(--sp-4);margin-bottom:var(--sp-5);
-        text-align:center;min-height:160px;display:flex;
-        align-items:center;justify-content:center;">
+        text-align:center;min-height:160px;
+        overflow:hidden;position:relative;">
+
         {% if image_url %}
-            <img src="{{ image_url }}?v={{ 'now'|timestamp }}"
-                alt="Handwritten Text"
-                class="handwritten-image"
-                id="current-image"
-                style="max-height:220px;width:auto;">
+
+            <!-- Zoom controls -->
+            <div style="
+                display:flex;align-items:center;justify-content:flex-end;
+                gap:8px;margin-bottom:12px;">
+                <span style="font-size:var(--text-xs);color:var(--gray-400);
+                    font-weight:600;margin-right:4px;">Zoom</span>
+                <button type="button" id="zoomOut" onclick="changeZoom(-0.2)"
+                    title="Zoom Out"
+                    style="
+                        width:32px;height:32px;border-radius:var(--r-md);
+                        border:1px solid var(--gray-200);background:#fff;
+                        cursor:pointer;font-size:16px;font-weight:700;
+                        color:var(--gray-600);display:inline-flex;
+                        align-items:center;justify-content:center;
+                        transition:background 0.15s,border-color 0.15s;
+                        line-height:1;"
+                    onmouseover="this.style.background='var(--gray-100)'"
+                    onmouseout="this.style.background='#fff'">
+                    −
+                </button>
+                <span id="zoomLevel" style="
+                    font-family:var(--font-mono);font-size:var(--text-xs);
+                    font-weight:700;color:var(--gray-500);
+                    min-width:38px;text-align:center;">
+                    100%
+                </span>
+                <button type="button" id="zoomIn" onclick="changeZoom(0.2)"
+                    title="Zoom In"
+                    style="
+                        width:32px;height:32px;border-radius:var(--r-md);
+                        border:1px solid var(--gray-200);background:#fff;
+                        cursor:pointer;font-size:16px;font-weight:700;
+                        color:var(--gray-600);display:inline-flex;
+                        align-items:center;justify-content:center;
+                        transition:background 0.15s,border-color 0.15s;
+                        line-height:1;"
+                    onmouseover="this.style.background='var(--gray-100)'"
+                    onmouseout="this.style.background='#fff'">
+                    +
+                </button>
+                <button type="button" onclick="resetZoom()"
+                    title="Reset Zoom"
+                    style="
+                        padding:0 10px;height:32px;border-radius:var(--r-md);
+                        border:1px solid var(--gray-200);background:#fff;
+                        cursor:pointer;font-size:11px;font-weight:600;
+                        color:var(--gray-500);display:inline-flex;
+                        align-items:center;justify-content:center;
+                        transition:background 0.15s;white-space:nowrap;"
+                    onmouseover="this.style.background='var(--gray-100)'"
+                    onmouseout="this.style.background='#fff'">
+                    ↺ Reset
+                </button>
+            </div>
+
+            <!-- Image wrapper — overflow:auto allows scrolling when zoomed in -->
+            <div id="imageWrapper" style="
+                overflow:auto;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                max-height:340px;">
+                <img src="{{ image_url }}?v={{ 'now'|timestamp }}"
+                    alt="Handwritten Text"
+                    class="handwritten-image"
+                    id="current-image"
+                    style="
+                        max-height:300px;
+                        width:auto;
+                        transform-origin:top center;
+                        transition:transform 0.2s ease;
+                        display:block;">
+            </div>
+
         {% else %}
-            <p style="color:var(--gray-400);">No image available.</p>
+            <div style="display:flex;align-items:center;justify-content:center;
+                min-height:160px;">
+                <p style="color:var(--gray-400);">No image available.</p>
+            </div>
         {% endif %}
     </div>
 
@@ -103,8 +178,55 @@
         <div class="submission-loader" id="loader"></div>
     </form>
 </div>
+
 {% endif %}
 
 <a href="{{ url_for('welcome') }}" class="back-link fade-in delay-2">← Back to Welcome</a>
+
+<!-- Zoom script -->
+<script>
+    let currentZoom = 1.0;
+    const MIN_ZOOM  = 0.4;
+    const MAX_ZOOM  = 3.0;
+    const STEP      = 0.2;
+
+    function changeZoom(delta) {
+        const img     = document.getElementById('current-image');
+        const label   = document.getElementById('zoomLevel');
+        const btnOut  = document.getElementById('zoomOut');
+        const btnIn   = document.getElementById('zoomIn');
+        if (!img) return;
+
+        currentZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM,
+            Math.round((currentZoom + delta) * 10) / 10
+        ));
+
+        img.style.transform = `scale(${currentZoom})`;
+        label.textContent   = Math.round(currentZoom * 100) + '%';
+
+        // Disable buttons at limits
+        btnOut.disabled           = currentZoom <= MIN_ZOOM;
+        btnOut.style.opacity      = currentZoom <= MIN_ZOOM ? '0.35' : '1';
+        btnOut.style.cursor       = currentZoom <= MIN_ZOOM ? 'not-allowed' : 'pointer';
+        btnIn.disabled            = currentZoom >= MAX_ZOOM;
+        btnIn.style.opacity       = currentZoom >= MAX_ZOOM ? '0.35' : '1';
+        btnIn.style.cursor        = currentZoom >= MAX_ZOOM ? 'not-allowed' : 'pointer';
+    }
+
+    function resetZoom() {
+        currentZoom = 1.0;
+        changeZoom(0);  // re-apply with delta 0 to update UI state
+    }
+
+    // Keyboard shortcuts: + / - / 0
+    document.addEventListener('keydown', function(e) {
+        // Only trigger if the text input is NOT focused
+        if (document.activeElement &&
+            document.activeElement.id === 'handwritten_input') return;
+        if (e.key === '+' || e.key === '=') { e.preventDefault(); changeZoom(STEP);  }
+        if (e.key === '-')                  { e.preventDefault(); changeZoom(-STEP); }
+        if (e.key === '0')                  { e.preventDefault(); resetZoom();        }
+    });
+</script>
 
 {% endblock %}

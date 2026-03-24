@@ -33,7 +33,6 @@
             <a href="{{ url_for('welcome') }}">Return to Welcome</a> or
             <a href="{{ url_for('thank_you') }}">View Results</a>.
         </p>
-
     {% else %}
 
         <!-- Warm-Up Banner -->
@@ -80,13 +79,11 @@
             display:flex;flex-direction:column;
             align-items:center;justify-content:center;
             gap:16px;">
-
             <div style="
                 font-size:11px;font-weight:700;letter-spacing:0.12em;
                 text-transform:uppercase;color:rgba(255,255,255,0.55);">
                 {{ attempt_label }} — Starting in
             </div>
-
             <div id="countdownNumber" style="
                 font-family:'DM Mono',monospace;
                 font-size:6rem;font-weight:800;
@@ -94,7 +91,6 @@
                 text-shadow:0 0 40px rgba(20,168,159,0.6);">
                 5
             </div>
-
             <div style="
                 width:120px;height:4px;
                 background:rgba(255,255,255,0.15);
@@ -107,7 +103,6 @@
                     transition:width 1s linear;">
                 </div>
             </div>
-
             <div style="
                 font-size:13px;color:rgba(255,255,255,0.45);
                 margin-top:4px;">
@@ -115,9 +110,45 @@
             </div>
         </div>
 
+        <!-- ── Sticky Timer Bar ─────────────────────────────── -->
+        <div class="fade-in delay-1" style="
+            display:flex;align-items:center;justify-content:space-between;
+            flex-wrap:wrap;gap:12px;
+            background:#f8fafc;border:1px solid #e2e8f0;
+            border-radius:12px;padding:14px 20px;
+            margin-bottom:20px;
+            position:sticky;top:12px;z-index:100;
+            box-shadow:0 1px 6px rgba(0,0,0,0.07);">
+
+            <!-- Timer — left -->
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span style="font-size:1.3rem;">⏱️</span>
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#64748b;
+                        text-transform:uppercase;letter-spacing:0.07em;
+                        margin-bottom:2px;">
+                        Time Remaining
+                    </div>
+                    <div id="timer" style="
+                        font-family:'DM Mono',monospace;
+                        font-size:1.5rem;font-weight:700;
+                        color:#0f172a;letter-spacing:0.05em;">
+                        {{ time_limit // 60 }}:{{ '%02d' | format(time_limit % 60) }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats — right -->
+            <div id="stats" style="
+                font-family:'DM Mono',monospace;
+                font-size:14px;font-weight:600;
+                color:#475569;">
+                WPM: 0 | Accuracy: 0%
+            </div>
+        </div>
+
         <!-- Test Card -->
         <div class="card fade-in delay-2">
-
             <!-- Attempt info pills -->
             <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
                 <div style="background:#f8fafc;border:1px solid #e2e8f0;
@@ -151,10 +182,10 @@
             <div class="sample-text" id="sample-text" data-text="{{ paragraph|safe }}"></div>
 
             <form id="typingForm" method="POST" action="{{ url_for('typing_test') }}" autocomplete="off">
-                <input type="hidden" name="user_name"           value="{{ name }}"          autocomplete="off">
-                <input type="hidden" name="selected_paragraph"  id="selected_paragraph"     value="{{ paragraph|safe }}" autocomplete="off">
-                <input type="hidden" name="difficulty"          value="{{ difficulty }}"     autocomplete="off">
-                <input type="hidden" name="time_limit"          id="form_time_limit"        value="{{ time_limit }}"     autocomplete="off">
+                <input type="hidden" name="user_name"          value="{{ name }}"           autocomplete="off">
+                <input type="hidden" name="selected_paragraph" id="selected_paragraph"      value="{{ paragraph|safe }}" autocomplete="off">
+                <input type="hidden" name="difficulty"         value="{{ difficulty }}"      autocomplete="off">
+                <input type="hidden" name="time_limit"         id="form_time_limit"         value="{{ time_limit }}"     autocomplete="off">
                 <div class="form-group">
                     <label for="user_input" class="label">Type the text here:</label>
                     <textarea id="user_input" name="user_input"
@@ -163,11 +194,6 @@
                         autocomplete="off" autocorrect="off"
                         autocapitalize="off" spellcheck="false"
                         required></textarea>
-                </div>
-                <div class="stats" id="stats">WPM: 0 | Accuracy: 0%</div>
-                <div class="timer" id="timer">
-                    Time Remaining:
-                    {{ time_limit // 60 }}:{{ '%02d' | format(time_limit % 60) }}
                 </div>
                 <input type="hidden" name="wpm"      id="wpm"      autocomplete="off">
                 <input type="hidden" name="accuracy" id="accuracy" autocomplete="off">
@@ -230,7 +256,6 @@
     </div>
     {% endif %}
     {% endwith %}
-
 </div>
 
 <!-- Countdown script — runs before typing_test.js timer starts -->
@@ -241,7 +266,6 @@
     const number   = document.getElementById('countdownNumber');
     const bar      = document.getElementById('countdownBar');
     const textarea = document.getElementById('user_input');
-
     if (!overlay) return;
 
     // Disable textarea during countdown
@@ -279,7 +303,6 @@
             }, 300);
             return;
         }
-
         count--;
         setTimeout(tick, 1000);
     }
