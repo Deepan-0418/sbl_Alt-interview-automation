@@ -157,7 +157,7 @@ def generate_typing_test_pdf(
         c.drawRightString(letter[0]-0.5*inch, 0.85*inch, "Hiring Manager Signature")
         c.setLineWidth(0.5)
         c.line(0.5*inch, 0.65*inch, letter[0]-0.5*inch, 0.65*inch)
-        c.drawCentredString(letter[0]/2, 0.5*inch, "© SBL | InterviewAutomation2025")
+        c.drawCentredString(letter[0]/2, 0.5*inch, "© SBL | InterviewAutomation2026")
         c.restoreState()
 
     story = []
