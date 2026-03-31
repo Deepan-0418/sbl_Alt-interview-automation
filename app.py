@@ -24,21 +24,26 @@ logger = logging.getLogger(__name__)
 if getattr(sys, 'frozen', False):
     import shutil
     base_path = sys._MEIPASS
-    user_dir = os.path.join(os.path.expanduser("~"), "InterviewAutomation")
+    user_dir  = os.path.join(os.path.expanduser("~"), "InterviewAutomation")
     if not os.path.exists(user_dir):
         os.makedirs(user_dir)
+
     writable_data_json = os.path.join(user_dir, 'data.json')
-    writable_static = os.path.join(user_dir, 'static')
+    writable_static    = os.path.join(user_dir, 'static')
+
     if not os.path.exists(writable_data_json):
         shutil.copy(os.path.join(base_path, 'data.json'), writable_data_json)
     if not os.path.exists(writable_static):
         shutil.copytree(os.path.join(base_path, 'static'), writable_static)
+
 else:
     base_path = os.path.dirname(__file__)
     data_root = os.environ.get('DATA_ROOT', base_path)
-    user_dir = data_root
+    user_dir  = data_root
+
     writable_data_json = os.path.join(data_root, 'data.json')
-    writable_static = os.path.join(base_path, 'static')
+    writable_static    = os.path.join(base_path, 'static')
+
     if not os.path.exists(writable_data_json):
         import shutil
         src = os.path.join(base_path, 'data.json')
@@ -46,9 +51,10 @@ else:
             os.makedirs(os.path.dirname(writable_data_json), exist_ok=True)
             shutil.copy(src, writable_data_json)
             logger.info("Copied data.json to user_dir on first boot.")
+
     import shutil as _shutil
     for _fname in ['master_excel_solution.xlsx', 'logo.png']:
-        _src = os.path.join(base_path, 'static', _fname)
+        _src  = os.path.join(base_path, 'static', _fname)
         _dest = os.path.join(user_dir, _fname)
         if not os.path.exists(_dest) and os.path.exists(_src):
             _shutil.copy(_src, _dest)
@@ -56,25 +62,38 @@ else:
 
 # ── Flask app ──────────────────────────────────────────────────
 app = Flask(__name__, static_folder=writable_static, static_url_path='/static')
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-dev-key-change-this')
-app.config['UPLOAD_FOLDER'] = user_dir
+app.config['SECRET_KEY']         = os.environ.get('SECRET_KEY', 'fallback-dev-key-change-this')
+app.config['UPLOAD_FOLDER']      = user_dir
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'xlsx'}
 
 # ── Server-side session ────────────────────────────────────────
-app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SESSION_FILE_DIR'] = os.path.join(user_dir, 'flask_sessions')
+app.config['SESSION_TYPE']           = 'filesystem'
+app.config['SESSION_FILE_DIR']       = os.path.join(user_dir, 'flask_sessions')
 app.config['SESSION_FILE_THRESHOLD'] = 500
-app.config['SESSION_PERMANENT'] = False
-app.config['SESSION_USE_SIGNER'] = True
+app.config['SESSION_PERMANENT']      = False
+app.config['SESSION_USE_SIGNER']     = True
 os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
 Session(app)
 
 # ── Load data.json ─────────────────────────────────────────────
 data_file_path = writable_data_json
-SAMPLE_PARAGRAPHS = {'easy': [], 'medium': [], 'hard': []}
-HANDWRITTEN_TEXTS = []
-EXCEL_QUIZ_QUESTIONS = []
+
+SAMPLE_PARAGRAPHS     = {'easy': [], 'medium': [], 'hard': []}
+HANDWRITTEN_TEXTS     = []
+EXCEL_QUIZ_QUESTIONS  = []
 EXCEL_PRACTICAL_TASKS = []
+
+# ── Typing pass criteria ───────────────────────────────────────
+# Priority order:
+#   1. data.json  typing_pass_criteria  (admin-editable, no redeploy needed)
+#   2. Environment variables            (deployment-level override)
+#   3. Hardcoded defaults               (25 WPM, 90% accuracy, 2/3 attempts)
+#
+# The admin can change these live from the Admin Dashboard at any time.
+# Changes are saved to data.json and take effect immediately.
+TYPING_PASS_WPM      = 25
+TYPING_PASS_ACCURACY = 90
+TYPING_PASS_COUNT    = 2
 
 if not os.path.exists(data_file_path):
     logger.error(f"data.json not found at: {data_file_path}")
@@ -82,20 +101,36 @@ else:
     try:
         with open(data_file_path, 'r', encoding='utf-8') as f:
             data = json.loads(f.read())
-        SAMPLE_PARAGRAPHS = data.get('sample_paragraphs', {'easy': [], 'medium': [], 'hard': []})
-        HANDWRITTEN_TEXTS = data.get('handwritten_texts', [])
-        EXCEL_QUIZ_QUESTIONS = data.get('excel_quiz_questions', [])
-        EXCEL_PRACTICAL_TASKS = data.get('excel_practical_tasks', [])
+        SAMPLE_PARAGRAPHS     = data.get('sample_paragraphs',    {'easy': [], 'medium': [], 'hard': []})
+        HANDWRITTEN_TEXTS     = data.get('handwritten_texts',    [])
+        EXCEL_QUIZ_QUESTIONS  = data.get('excel_quiz_questions', [])
+        EXCEL_PRACTICAL_TASKS = data.get('excel_practical_tasks',[])
+
+        # Load typing pass criteria from data.json
+        # Falls back to env vars, then hardcoded defaults
+        _criteria = data.get('typing_pass_criteria', {})
+        TYPING_PASS_WPM      = int(_criteria.get('wpm',        os.environ.get('TYPING_PASS_WPM',      25)))
+        TYPING_PASS_ACCURACY = int(_criteria.get('accuracy',   os.environ.get('TYPING_PASS_ACCURACY', 90)))
+        TYPING_PASS_COUNT    = int(_criteria.get('pass_count', os.environ.get('TYPING_PASS_COUNT',      2)))
+
     except json.JSONDecodeError as e:
         logger.error(f"JSON parsing error in data.json: {e}")
     except Exception as e:
         logger.error(f"Unexpected error loading data.json: {e}")
+
+logger.info(
+    f"Typing pass criteria loaded — "
+    f"WPM: {TYPING_PASS_WPM}, "
+    f"Accuracy: {TYPING_PASS_ACCURACY}%, "
+    f"Min passing attempts: {TYPING_PASS_COUNT}/3"
+)
 
 # ── Jinja filter ───────────────────────────────────────────────
 app.jinja_env.filters['timestamp'] = lambda _: str(int(time()))
 
 # ── Admin credentials ──────────────────────────────────────────
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
+
 def get_admin_password():
     return os.environ.get('ADMIN_PASSWORD', 'Admin@' + datetime.now().strftime('%Y%m%d'))
 
@@ -104,44 +139,38 @@ SIGNUP_PASSWORD = os.environ.get('SIGNUP_PASSWORD', 'IATsbl@2026')
 
 # ── Typing attempt config ──────────────────────────────────────
 ATTEMPT_CONFIG = [
-    {'label': 'Warm-Up', 'difficulty': 'easy', 'time_limit': 300, 'scored': False},
-    {'label': 'First Attempt', 'difficulty': 'easy', 'time_limit': 120, 'scored': True},
+    {'label': 'Warm-Up',        'difficulty': 'easy',   'time_limit': 300, 'scored': False},
+    {'label': 'First Attempt',  'difficulty': 'easy',   'time_limit': 120, 'scored': True},
     {'label': 'Second Attempt', 'difficulty': 'medium', 'time_limit': 120, 'scored': True},
-    {'label': 'Third Attempt', 'difficulty': 'hard', 'time_limit': 120, 'scored': True},
+    {'label': 'Third Attempt',  'difficulty': 'hard',   'time_limit': 120, 'scored': True},
 ]
 
-# ── Typing pass criteria (Admin can change these) ──────────────
-TYPING_PASS_WPM = int(os.environ.get('TYPING_PASS_WPM', 25))
-TYPING_PASS_ACCURACY = int(os.environ.get('TYPING_PASS_ACCURACY', 90))
-TYPING_PASS_COUNT = int(os.environ.get('TYPING_PASS_COUNT', 2))
-
-logger.info(
-    f"Typing pass criteria — WPM: {TYPING_PASS_WPM}, "
-    f"Accuracy: {TYPING_PASS_ACCURACY}%, "
-    f"Min passing attempts: {TYPING_PASS_COUNT}/3"
-)
 
 # ══════════════════════════════════════════════════════════════
 # HELPER FUNCTIONS
 # ══════════════════════════════════════════════════════════════
+
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
 
 def generate_excel_template():
     workbook = openpyxl.Workbook()
-    sheet1 = workbook.active
-    sheet1.title = "Function"
-    sheet2 = workbook.create_sheet("Sort")
-    sheet3 = workbook.create_sheet("Replace")
-    sheet4 = workbook.create_sheet("Concatenate")
-    sheet5 = workbook.create_sheet("Sum & Average")
-    sheet6 = workbook.create_sheet("Insert Row & Delete Column")
-    sheet7 = workbook.create_sheet("Trim & Length")
-    sheet8 = workbook.create_sheet("Left & Right")
-    sheet9 = workbook.create_sheet("Count")
+
+    sheet1  = workbook.active; sheet1.title = "Function"
+    sheet2  = workbook.create_sheet("Sort")
+    sheet3  = workbook.create_sheet("Replace")
+    sheet4  = workbook.create_sheet("Concatenate")
+    sheet5  = workbook.create_sheet("Sum & Average")
+    sheet6  = workbook.create_sheet("Insert Row & Delete Column")
+    sheet7  = workbook.create_sheet("Trim & Length")
+    sheet8  = workbook.create_sheet("Left & Right")
+    sheet9  = workbook.create_sheet("Count")
     sheet10 = workbook.create_sheet("Duplicates")
 
-    all_sheets = [sheet1, sheet2, sheet3, sheet4, sheet5, sheet6, sheet7, sheet8, sheet9, sheet10]
+    all_sheets = [sheet1, sheet2, sheet3, sheet4, sheet5,
+                  sheet6, sheet7, sheet8, sheet9, sheet10]
 
     for sheet in all_sheets:
         sheet['A1'] = "Excel Practical Test Instructions"
@@ -156,7 +185,7 @@ def generate_excel_template():
         total_sheets = len(all_sheets)
         for idx, task in enumerate(tasks):
             sheet = all_sheets[idx % total_sheets]
-            row = (idx // total_sheets) + 2
+            row   = (idx // total_sheets) + 2
             sheet[f'A{row}'] = f"Task {task['task_id']}: {task['description']}"
             sheet[f'A{row}'].alignment = Alignment(wrap_text=True)
 
@@ -175,6 +204,7 @@ def generate_excel_template():
     logger.info(f"Excel template saved to: {template_path}")
     return template_path
 
+
 def validate_excel_against_master(user_file_path, master_file_path):
     sheet_names = [
         "Function", "Sort", "Replace", "Concatenate", "Sum & Average",
@@ -182,10 +212,10 @@ def validate_excel_against_master(user_file_path, master_file_path):
         "Count", "Duplicates"
     ]
     try:
-        user_wb = openpyxl.load_workbook(user_file_path, data_only=True)
+        user_wb   = openpyxl.load_workbook(user_file_path,   data_only=True)
         master_wb = openpyxl.load_workbook(master_file_path, data_only=True)
 
-        if (not all(n in user_wb.sheetnames for n in sheet_names) or
+        if (not all(n in user_wb.sheetnames   for n in sheet_names) or
                 not all(n in master_wb.sheetnames for n in sheet_names)):
             logger.error("Sheet mismatch between user and master files")
             return 0.0, {n: 0 for n in sheet_names}
@@ -194,6 +224,7 @@ def validate_excel_against_master(user_file_path, master_file_path):
         for sheet_name in sheet_names:
             u = user_wb[sheet_name]
             m = master_wb[sheet_name]
+
             if u.max_row != m.max_row or u.max_column != m.max_column:
                 sheet_scores[sheet_name] = 0
                 continue
@@ -214,30 +245,36 @@ def validate_excel_against_master(user_file_path, master_file_path):
         overall = round((sum(sheet_scores.values()) / len(sheet_names)) * 100, 2)
         logger.info(f"Overall Quality Score: {overall}%")
         return overall, sheet_scores
+
     except Exception as e:
         logger.error(f"Error validating Excel file: {e}")
         return 0.0, {n: 0 for n in sheet_names}
+
 
 # ── Initialize database ────────────────────────────────────────
 with app.app_context():
     init_db()
 
-# ── Generate Excel template on startup ─────────────────────────
+# ── Generate Excel template on startup (only if missing) ───────
 with app.app_context():
     try:
         template_path = os.path.join(app.config['UPLOAD_FOLDER'], 'excel_practical_template.xlsx')
         if not os.path.exists(template_path):
             if EXCEL_PRACTICAL_TASKS:
                 generate_excel_template()
-                logger.info("Excel template generated on startup.")
+                logger.info("Excel template generated on startup (file was missing).")
             else:
                 logger.warning("No EXCEL_PRACTICAL_TASKS — template not generated.")
+        else:
+            logger.info("Excel template already exists — skipping auto-generation on startup.")
     except Exception as e:
         logger.error(f"Failed to generate Excel template on startup: {e}")
+
 
 # ══════════════════════════════════════════════════════════════
 # FILE SERVING
 # ══════════════════════════════════════════════════════════════
+
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -248,21 +285,27 @@ def uploaded_file(filename):
         return jsonify({'error': 'File not found'}), 404
     return send_file(file_path)
 
+
 # ══════════════════════════════════════════════════════════════
 # ADMIN ROUTES
 # ══════════════════════════════════════════════════════════════
+
 @app.route('/admin_login', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
+
         if username == ADMIN_USERNAME and password == get_admin_password():
             session['admin_logged_in'] = True
             flash('Login successful!', 'success')
             return redirect(url_for('admin_dashboard'))
+
         flash('Invalid credentials.', 'error')
         return redirect(url_for('admin_login'))
+
     return render_template('admin_login.html')
+
 
 @app.route('/admin_dashboard', methods=['GET', 'POST'])
 def admin_dashboard():
@@ -274,42 +317,88 @@ def admin_dashboard():
     global TYPING_PASS_WPM, TYPING_PASS_ACCURACY, TYPING_PASS_COUNT
 
     if request.method == 'POST':
-        # Update Typing Thresholds
-        if 'update_typing_thresholds' in request.form:
-            try:
-                TYPING_PASS_WPM = int(request.form.get('pass_wpm', 25))
-                TYPING_PASS_ACCURACY = int(request.form.get('pass_accuracy', 90))
-                TYPING_PASS_COUNT = int(request.form.get('pass_count', 2))
 
-                flash(f'Typing thresholds updated successfully! '
-                      f'WPM ≥ {TYPING_PASS_WPM} | Accuracy ≥ {TYPING_PASS_ACCURACY}% | '
-                      f'At least {TYPING_PASS_COUNT}/3 attempts', 'success')
-                logger.info(f"Admin updated thresholds → WPM={TYPING_PASS_WPM}, Acc={TYPING_PASS_ACCURACY}%, Count={TYPING_PASS_COUNT}")
-            except ValueError:
-                flash('Invalid threshold values. Please enter numbers only.', 'error')
-
-        # Update data.json
-        elif 'data_json' in request.form:
+        # ── Update data.json ───────────────────────────────────
+        if 'data_json' in request.form:
             try:
                 new_data = json.loads(request.form.get('data_json'))
+                if not new_data.get('excel_practical_tasks'):
+                    flash('Warning: excel_practical_tasks is empty or missing.', 'warning')
                 with open(data_file_path, 'w', encoding='utf-8') as f:
                     json.dump(new_data, f, indent=4)
-                SAMPLE_PARAGRAPHS = new_data.get('sample_paragraphs', {'easy': [], 'medium': [], 'hard': []})
-                HANDWRITTEN_TEXTS = new_data.get('handwritten_texts', [])
-                EXCEL_QUIZ_QUESTIONS = new_data.get('excel_quiz_questions', [])
-                EXCEL_PRACTICAL_TASKS = new_data.get('excel_practical_tasks', [])
+                SAMPLE_PARAGRAPHS     = new_data.get('sample_paragraphs',    {'easy': [], 'medium': [], 'hard': []})
+                HANDWRITTEN_TEXTS     = new_data.get('handwritten_texts',    [])
+                EXCEL_QUIZ_QUESTIONS  = new_data.get('excel_quiz_questions', [])
+                EXCEL_PRACTICAL_TASKS = new_data.get('excel_practical_tasks',[])
+                # Also reload typing criteria if present in the JSON
+                _criteria = new_data.get('typing_pass_criteria', {})
+                if _criteria:
+                    TYPING_PASS_WPM      = int(_criteria.get('wpm',        TYPING_PASS_WPM))
+                    TYPING_PASS_ACCURACY = int(_criteria.get('accuracy',   TYPING_PASS_ACCURACY))
+                    TYPING_PASS_COUNT    = int(_criteria.get('pass_count', TYPING_PASS_COUNT))
                 flash('data.json updated successfully!', 'success')
             except json.JSONDecodeError:
                 flash('Invalid JSON format.', 'error')
             except Exception as e:
                 flash(f'Error updating data.json: {str(e)}', 'error')
 
-        # Upload handwritten image
+        # ── Update typing pass criteria ────────────────────────
+        elif 'typing_wpm' in request.form:
+            try:
+                new_wpm      = int(request.form.get('typing_wpm',      25))
+                new_accuracy = int(request.form.get('typing_accuracy', 90))
+                new_count    = int(request.form.get('typing_count',     2))
+
+                # Validate ranges
+                if not (1 <= new_wpm <= 300):
+                    flash('WPM must be between 1 and 300.', 'error')
+                    return redirect(url_for('admin_dashboard'))
+                if not (1 <= new_accuracy <= 100):
+                    flash('Accuracy must be between 1 and 100.', 'error')
+                    return redirect(url_for('admin_dashboard'))
+                if not (1 <= new_count <= 3):
+                    flash('Minimum passing attempts must be between 1 and 3.', 'error')
+                    return redirect(url_for('admin_dashboard'))
+
+                # Save to data.json
+                with open(data_file_path, 'r', encoding='utf-8') as f:
+                    d = json.load(f)
+                d['typing_pass_criteria'] = {
+                    'wpm':        new_wpm,
+                    'accuracy':   new_accuracy,
+                    'pass_count': new_count,
+                }
+                with open(data_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(d, f, indent=4)
+
+                # Update in-memory values immediately — no restart needed
+                TYPING_PASS_WPM      = new_wpm
+                TYPING_PASS_ACCURACY = new_accuracy
+                TYPING_PASS_COUNT    = new_count
+
+                logger.info(
+                    f"Typing criteria updated by admin — "
+                    f"WPM: {TYPING_PASS_WPM}, "
+                    f"Accuracy: {TYPING_PASS_ACCURACY}%, "
+                    f"Min passing attempts: {TYPING_PASS_COUNT}/3"
+                )
+                flash(
+                    f'Typing pass criteria updated: '
+                    f'WPM \u2265 {new_wpm}, '
+                    f'Accuracy \u2265 {new_accuracy}%, '
+                    f'Min {new_count}/3 attempts. '
+                    f'Takes effect immediately.',
+                    'success'
+                )
+            except (ValueError, TypeError):
+                flash('Invalid values. Please enter whole numbers.', 'error')
+
+        # ── Upload handwritten image ───────────────────────────
         elif 'file' in request.files:
-            file = request.files['file']
+            file             = request.files['file']
             handwritten_text = request.form.get('handwritten_text')
             if file and allowed_file(file.filename) and handwritten_text:
-                filename = secure_filename(file.filename)
+                filename  = secure_filename(file.filename)
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(file_path)
                 with open(data_file_path, 'r', encoding='utf-8') as f:
@@ -322,7 +411,7 @@ def admin_dashboard():
             else:
                 flash('Invalid file or text input.', 'error')
 
-        # Delete image
+        # ── Delete image ───────────────────────────────────────
         elif 'delete_image' in request.form:
             image_to_delete = request.form.get('delete_image')
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], image_to_delete)
@@ -330,7 +419,10 @@ def admin_dashboard():
                 os.remove(file_path)
                 with open(data_file_path, 'r', encoding='utf-8') as f:
                     d = json.load(f)
-                d['handwritten_texts'] = [i for i in d['handwritten_texts'] if i['image'] != image_to_delete]
+                d['handwritten_texts'] = [
+                    i for i in d['handwritten_texts']
+                    if i['image'] != image_to_delete
+                ]
                 with open(data_file_path, 'w', encoding='utf-8') as f:
                     json.dump(d, f, indent=4)
                 HANDWRITTEN_TEXTS = d['handwritten_texts']
@@ -340,7 +432,6 @@ def admin_dashboard():
 
         return redirect(url_for('admin_dashboard'))
 
-    # GET request
     with open(data_file_path, 'r', encoding='utf-8') as f:
         data_json = json.load(f)
 
@@ -367,45 +458,62 @@ def admin_dashboard():
         typing_pass_count=TYPING_PASS_COUNT,
     )
 
+
 @app.route('/admin_upload_master_excel', methods=['POST'])
 def admin_upload_master_excel():
     if not session.get('admin_logged_in'):
         flash('Please log in as admin.', 'error')
         return redirect(url_for('admin_login'))
+
     if 'master_excel' not in request.files:
         flash('No file selected.', 'error')
         return redirect(url_for('admin_dashboard'))
+
     file = request.files['master_excel']
     if file.filename == '' or not file.filename.endswith('.xlsx'):
         flash('Please upload a valid .xlsx file.', 'error')
         return redirect(url_for('admin_dashboard'))
+
     try:
         master_path = os.path.join(app.config['UPLOAD_FOLDER'], 'master_excel_solution.xlsx')
         file.save(master_path)
         flash('Master Excel solution uploaded successfully!', 'success')
+        logger.info(f"Master Excel solution updated at: {master_path}")
     except Exception as e:
+        logger.error(f"Error uploading master Excel: {e}")
         flash(f'Error uploading file: {str(e)}', 'error')
+
     return redirect(url_for('admin_dashboard'))
+
 
 @app.route('/admin_upload_excel_template', methods=['POST'])
 def admin_upload_excel_template():
     if not session.get('admin_logged_in'):
         flash('Please log in as admin.', 'error')
         return redirect(url_for('admin_login'))
+
     if 'excel_template' not in request.files:
         flash('No file selected.', 'error')
         return redirect(url_for('admin_dashboard'))
+
     file = request.files['excel_template']
     if file.filename == '' or not file.filename.endswith('.xlsx'):
         flash('Please upload a valid .xlsx file.', 'error')
         return redirect(url_for('admin_dashboard'))
+
     try:
-        template_path = os.path.join(app.config['UPLOAD_FOLDER'], 'excel_practical_template.xlsx')
+        template_path = os.path.join(
+            app.config['UPLOAD_FOLDER'], 'excel_practical_template.xlsx'
+        )
         file.save(template_path)
         flash('Excel practical template uploaded successfully!', 'success')
+        logger.info(f"Excel practical template updated at: {template_path}")
     except Exception as e:
+        logger.error(f"Error uploading Excel template: {e}")
         flash(f'Error uploading file: {str(e)}', 'error')
+
     return redirect(url_for('admin_dashboard'))
+
 
 @app.route('/admin_regenerate_template')
 def admin_regenerate_template():
@@ -416,14 +524,17 @@ def admin_regenerate_template():
         generate_excel_template()
         flash('Excel template regenerated successfully from task list!', 'success')
     except Exception as e:
+        logger.error(f"Error regenerating template: {e}")
         flash(f'Error regenerating template: {str(e)}', 'error')
     return redirect(url_for('admin_dashboard'))
+
 
 @app.route('/admin_logout')
 def admin_logout():
     session.pop('admin_logged_in', None)
     flash('Logged out successfully.', 'success')
     return redirect(url_for('admin_login'))
+
 
 @app.route('/admin_clear_session')
 def admin_clear_session():
@@ -436,12 +547,69 @@ def admin_clear_session():
     flash('Candidate session cleared successfully.', 'success')
     return redirect(url_for('admin_dashboard'))
 
+
+@app.route('/debug_static_files')
+def debug_static_files():
+    if not session.get('admin_logged_in'):
+        return jsonify({'error': 'Admin access required'}), 403
+    return jsonify({
+        'upload_folder': app.config['UPLOAD_FOLDER'],
+        'files':         os.listdir(app.config['UPLOAD_FOLDER']),
+    })
+
+
+@app.route('/debug_tasks')
+def debug_tasks():
+    return jsonify({'excel_practical_tasks': EXCEL_PRACTICAL_TASKS})
+
+
+@app.route('/debug_paths')
+def debug_paths():
+    upload_folder   = app.config['UPLOAD_FOLDER']
+    template_path   = os.path.join(upload_folder, 'excel_practical_template.xlsx')
+    static_template = os.path.join(writable_static, 'excel_practical_template.xlsx')
+    return jsonify({
+        'UPLOAD_FOLDER':         upload_folder,
+        'writable_static':       writable_static,
+        'template_in_upload':    os.path.exists(template_path),
+        'template_in_static':    os.path.exists(static_template),
+        'template_upload_mtime': str(datetime.fromtimestamp(os.path.getmtime(template_path))) if os.path.exists(template_path) else 'missing',
+        'template_static_mtime': str(datetime.fromtimestamp(os.path.getmtime(static_template))) if os.path.exists(static_template) else 'missing',
+        'typing_pass_wpm':       TYPING_PASS_WPM,
+        'typing_pass_accuracy':  TYPING_PASS_ACCURACY,
+        'typing_pass_count':     TYPING_PASS_COUNT,
+    })
+
+
+@app.route('/debug_template_info')
+def debug_template_info():
+    template_path = os.path.join(app.config['UPLOAD_FOLDER'], 'excel_practical_template.xlsx')
+    if not os.path.exists(template_path):
+        return jsonify({'error': 'Template file not found'})
+    wb  = openpyxl.load_workbook(template_path)
+    ws  = wb.active
+    cells = {}
+    for row in range(1, 4):
+        for col in range(1, 3):
+            cell = ws.cell(row=row, column=col)
+            cells[f'{cell.coordinate}'] = str(cell.value)
+    return jsonify({
+        'template_path': template_path,
+        'file_size_kb':  round(os.path.getsize(template_path) / 1024, 2),
+        'modified_time': str(datetime.fromtimestamp(os.path.getmtime(template_path))),
+        'sheet_names':   wb.sheetnames,
+        'first_cells':   cells,
+    })
+
+
 # ══════════════════════════════════════════════════════════════
-# CANDIDATE ROUTES (unchanged)
+# CANDIDATE ROUTES
 # ══════════════════════════════════════════════════════════════
+
 @app.route('/')
 def welcome():
     return render_template('welcome.html')
+
 
 @app.route('/verify_signup_password', methods=['POST'])
 def verify_signup_password():
@@ -451,18 +619,20 @@ def verify_signup_password():
         return jsonify({'success': True})
     return jsonify({'success': False})
 
+
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if not session.get('signup_authorized'):
         flash('Please authenticate to access the sign-up page.', 'error')
         return redirect(url_for('welcome'))
+
     if request.method == 'POST':
-        name = escape(request.form.get('name', '').strip())
-        location = escape(request.form.get('location', '').strip())
-        distance = request.form.get('distance', '').strip()
+        name           = escape(request.form.get('name',           '').strip())
+        location       = escape(request.form.get('location',       '').strip())
+        distance       = request.form.get('distance',       '').strip()
         attempt_number = request.form.get('attempt_number', '').strip()
-        dob = request.form.get('dob', '').strip()
-        signup_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        dob            = request.form.get('dob',            '').strip()
+        signup_date    = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
         if not all([name, location, distance, attempt_number, dob]):
             flash('Please fill out all fields.', 'error')
@@ -480,8 +650,10 @@ def signup():
 
         try:
             dob_date = datetime.strptime(dob, '%Y-%m-%d')
-            today = datetime.now()
-            age = today.year - dob_date.year - ((today.month, today.day) < (dob_date.month, dob_date.day))
+            today    = datetime.now()
+            age      = today.year - dob_date.year - (
+                (today.month, today.day) < (dob_date.month, dob_date.day)
+            )
             if age < 18:
                 flash('You must be at least 18 years old to sign up.', 'error')
                 return redirect(url_for('signup'))
@@ -489,30 +661,33 @@ def signup():
             flash('Invalid date of birth format.', 'error')
             return redirect(url_for('signup'))
 
-        selected_excel_questions = random.sample(EXCEL_QUIZ_QUESTIONS, min(10, len(EXCEL_QUIZ_QUESTIONS))) if EXCEL_QUIZ_QUESTIONS else []
+        selected_excel_questions = (
+            random.sample(EXCEL_QUIZ_QUESTIONS, min(10, len(EXCEL_QUIZ_QUESTIONS)))
+            if EXCEL_QUIZ_QUESTIONS else []
+        )
 
         session.update({
-            'user_name': name,
-            'location': location,
-            'distance': distance,
-            'attempt_number': attempt_number,
-            'dob': dob,
-            'signup_date': signup_date,
-            'handwritten_completed': False,
-            'typing_completed': False,
-            'typing_attempts': 0,
-            'typing_results': [],
-            'excel_quiz_completed': False,
+            'user_name':                 name,
+            'location':                  location,
+            'distance':                  distance,
+            'attempt_number':            attempt_number,
+            'dob':                       dob,
+            'signup_date':               signup_date,
+            'handwritten_completed':     False,
+            'typing_completed':          False,
+            'typing_attempts':           0,
+            'typing_results':            [],
+            'excel_quiz_completed':      False,
             'excel_practical_completed': False,
-            'current_image_index': 0,
-            'handwritten_results': [],
-            'excel_quiz_results': [],
-            'excel_quiz_questions': [],
-            'selected_excel_questions': selected_excel_questions,
-            'excel_practical_results': [],
-            'excel_practical_file': None,
-            'excel_practical_score': None,
-            'excel_sheet_scores': None,
+            'current_image_index':       0,
+            'handwritten_results':       [],
+            'excel_quiz_results':        [],
+            'excel_quiz_questions':      [],
+            'selected_excel_questions':  selected_excel_questions,
+            'excel_practical_results':   [],
+            'excel_practical_file':      None,
+            'excel_practical_score':     None,
+            'excel_sheet_scores':        None,
         })
 
         insert_user(name, signup_date, location, distance, attempt_number, dob)
@@ -728,7 +903,6 @@ def typing_test():
         attempt_index=attempt_index,
         typing_attempts=len(session.get('typing_results', [])),
         typing_results=session.get('typing_results', []),
-        # Pass configurable criteria to template
         pass_wpm=TYPING_PASS_WPM,
         pass_accuracy=TYPING_PASS_ACCURACY,
         pass_count=TYPING_PASS_COUNT,
@@ -957,7 +1131,6 @@ def thank_you():
         excel_practical_tasks=EXCEL_PRACTICAL_TASKS,
         excel_practical_score=session.get('excel_practical_score'),
         excel_sheet_scores=session.get('excel_sheet_scores', {}),
-        # Pass configurable criteria to template
         pass_wpm=TYPING_PASS_WPM,
         pass_accuracy=TYPING_PASS_ACCURACY,
         pass_count=TYPING_PASS_COUNT,
@@ -1004,7 +1177,6 @@ def download_results():
         attempt_number=attempt_number,
         signup_date=signup_date,
         dob=dob,
-        # Pass configurable criteria to PDF generator
         pass_wpm=TYPING_PASS_WPM,
         pass_accuracy=TYPING_PASS_ACCURACY,
         pass_count=TYPING_PASS_COUNT,
