@@ -17,11 +17,11 @@
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
         gap:var(--sp-3);margin-top:var(--sp-2);">
         {% set info = [
-            ('Name',        name),
-            ('Sign-up Date',signup_date),
-            ('Location',    session.location),
-            ('Distance',    session.distance ~ ' km'),
-            ('Attempt',     session.attempt_number),
+        ('Name', name),
+        ('Sign-up Date',signup_date),
+        ('Location', session.location),
+        ('Distance', session.distance ~ ' km'),
+        ('Attempt', session.attempt_number),
         ] %}
         {% for label, value in info %}
         <div style="background:var(--gray-50);border:1px solid var(--gray-150);
@@ -39,26 +39,27 @@
 </div>
 
 <!-- ── Score Summary Cards ─────────────────────────────── -->
-{% set hw_correct  = handwritten_results | selectattr('status', 'equalto', 'Correct') | list | length %}
-{% set hw_total    = handwritten_results | length %}
-{% set hw_pct      = ((hw_correct / hw_total * 100) | round | int) if hw_total > 0 else 0 %}
-{% set quiz_pct    = ((excel_score / excel_total * 100) | round | int) if excel_total > 0 else 0 %}
-{% set prac_total  = excel_sheet_scores.values() | sum if excel_sheet_scores else 0 %}
-{% set prac_pct    = ((prac_total / 10 * 100) | round | int) if excel_sheet_scores else 0 %}
+{% set hw_correct = handwritten_results | selectattr('status', 'equalto', 'Correct') | list | length %}
+{% set hw_total = handwritten_results | length %}
+{% set hw_pct = ((hw_correct / hw_total * 100) | round | int) if hw_total > 0 else 0 %}
+{% set quiz_pct = ((excel_score / excel_total * 100) | round | int) if excel_total > 0 else 0 %}
+{% set prac_total = excel_sheet_scores.values() | sum if excel_sheet_scores else 0 %}
+{% set prac_pct = ((prac_total / 10 * 100) | round | int) if excel_sheet_scores else 0 %}
 
 {# Typing pass — uses dynamic criteria from app.py #}
-{% set typing_pass_count = results | selectattr('wpm', 'ge', pass_wpm) | selectattr('accuracy', 'ge', pass_accuracy) | list | length %}
-{% set typing_passed     = typing_pass_count >= pass_count %}
+{% set typing_pass_count = results | selectattr('wpm', 'ge', pass_wpm) | selectattr('accuracy', 'ge', pass_accuracy) |
+list | length %}
+{% set typing_passed = typing_pass_count >= pass_count %}
 
 <div class="fade-in delay-2" style="display:grid;
     grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
     gap:var(--sp-4);margin-bottom:var(--sp-6);">
 
     {% set summary = [
-        ('⌨️', 'Typing Test',     results | length ~ '/3 attempts',         typing_passed),
-        ('✍️', 'Handwritten',     hw_correct ~ '/' ~ hw_total ~ ' correct', hw_correct >= 8),
-        ('📊', 'Excel Quiz',      excel_score ~ '/' ~ excel_total ~ ' correct', excel_score >= 7),
-        ('📁', 'Excel Practical', prac_total ~ '/10 sheets',                prac_total >= 7),
+    ('⌨️', 'Typing Test', results | length ~ '/3 attempts', typing_passed),
+    ('✍️', 'Handwritten', hw_correct ~ '/' ~ hw_total ~ ' correct', hw_correct >= 8),
+    ('📊', 'Excel Quiz', excel_score ~ '/' ~ excel_total ~ ' correct', excel_score >= 7),
+    ('📁', 'Excel Practical', prac_total ~ '/10 sheets', prac_total >= 7),
     ] %}
 
     {% for icon, label, value, passed in summary %}
@@ -284,8 +285,7 @@
 <!-- ── Actions ────────────────────────────────────────── -->
 <div class="fade-in delay-2" style="display:flex;gap:var(--sp-3);
     flex-wrap:wrap;justify-content:center;margin-top:var(--sp-4);">
-    <a href="{{ url_for('download_results') }}" class="btn btn-accent"
-        style="padding:0.75rem var(--sp-8);">
+    <a href="{{ url_for('download_results') }}" class="btn btn-accent" style="padding:0.75rem var(--sp-8);">
         ⬇ Download Results
     </a>
     <a href="{{ url_for('welcome') }}" class="btn btn-ghost">

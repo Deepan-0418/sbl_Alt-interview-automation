@@ -180,7 +180,7 @@
         }
         @keyframes popIn {
             from { transform: scale(0.94); opacity: 0; }
-            to   { transform: scale(1);   opacity: 1; }
+            to { transform: scale(1); opacity: 1; }
         }
         .confirm-icon { font-size: 2rem; margin-bottom: var(--sp-3); }
         .confirm-box h3 {
@@ -214,11 +214,35 @@
         }
         .confirm-actions button:hover { opacity: 0.85; }
         .btn-confirm-yes { background: var(--red-600); color: #fff; }
-        .btn-confirm-no  {
+        .btn-confirm-no {
             background: var(--gray-100);
             color: var(--gray-600);
             border: 1px solid var(--gray-200);
         }
+
+        /* New styles for Typing Thresholds */
+        .threshold-card {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: var(--r-xl);
+            padding: var(--sp-6);
+            text-align: center;
+        }
+        .threshold-input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: var(--r-md);
+            font-size: 1.25rem;
+            font-family: var(--font-mono);
+            text-align: center;
+            font-weight: 600;
+        }
+        .threshold-input:focus {
+            border-color: #14a89f;
+            outline: none;
+        }
+
         @media (max-width: 640px) {
             .admin-section { padding: var(--sp-5); }
             .admin-topbar h1 { font-size: var(--text-xl); }
@@ -228,7 +252,6 @@
 </head>
 <body>
     <div class="container" style="max-width:900px;text-align:left;">
-
         <!-- Top Bar -->
         <div class="admin-topbar">
             <div class="admin-topbar-left">
@@ -260,6 +283,45 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
+
+        <!-- ── Typing Test Pass Criteria (New Section) ──────────────────────────────── -->
+        <div class="admin-section fade-in">
+            <h2>🎯 Typing Test Pass Criteria</h2>
+            <p style="color:var(--gray-500);margin-bottom:var(--sp-5);">
+                Update the minimum requirements for passing the typing test. 
+                Changes take effect immediately for new candidates.
+            </p>
+            <form method="POST" action="{{ url_for('admin_dashboard') }}">
+                <input type="hidden" name="update_typing_thresholds" value="1">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--sp-5);">
+                    <div class="threshold-card">
+                        <label style="font-weight:700;color:var(--gray-700);display:block;margin-bottom:8px;">
+                            Minimum WPM
+                        </label>
+                        <input type="number" name="pass_wpm" class="threshold-input" 
+                               value="{{ typing_pass_wpm }}" min="10" max="100" required>
+                        <small style="color:var(--gray-400);">Words Per Minute</small>
+                    </div>
+                    <div class="threshold-card">
+                        <label style="font-weight:700;color:var(--gray-700);display:block;margin-bottom:8px;">
+                            Minimum Accuracy (%)
+                        </label>
+                        <input type="number" name="pass_accuracy" class="threshold-input" 
+                               value="{{ typing_pass_accuracy }}" min="70" max="100" required>
+                        <small style="color:var(--gray-400);">Accuracy Percentage</small>
+                    </div>
+                    <div class="threshold-card">
+                        <label style="font-weight:700;color:var(--gray-700);display:block;margin-bottom:8px;">
+                            Minimum Passing Attempts
+                        </label>
+                        <input type="number" name="pass_count" class="threshold-input" 
+                               value="{{ typing_pass_count }}" min="1" max="3" required>
+                        <small style="color:var(--gray-400);">out of 3 attempts</small>
+                    </div>
+                </div>
+                <button type="submit" class="btn" style="margin-top:var(--sp-5);">💾 Save Typing Thresholds</button>
+            </form>
+        </div>
 
         <!-- ── Edit data.json ──────────────────────────────── -->
         <div class="admin-section fade-in">
@@ -313,7 +375,6 @@
                 {% if image_files %}
                     {% for image in image_files %}
                     <div class="image-item">
-                        <!-- ✅ Uses uploaded_file route — serves from user_dir, not static/ -->
                         <img src="{{ url_for('uploaded_file', filename=image) }}?v={{ 'now'|timestamp }}"
                             alt="{{ image }}">
                         <p style="font-size:var(--text-xs);color:var(--gray-500);
@@ -347,7 +408,6 @@
         <!-- ── Master Excel Solution ──────────────────────── -->
         <div class="admin-section fade-in delay-2">
             <h2>📊 Master Excel Solution</h2>
-
             <!-- File status -->
             <div class="file-info-row">
                 <span style="font-size:1.2rem;">📁</span>
@@ -364,7 +424,6 @@
                     {{ '✓ File present' if master_excel_exists else '✗ File missing' }}
                 </span>
             </div>
-
             {% if not master_excel_exists %}
             <div class="alert alert-warning"
                 style="margin-bottom:var(--sp-4);font-size:var(--text-sm);">
@@ -372,7 +431,6 @@
                 Excel files until you upload one.
             </div>
             {% endif %}
-
             <!-- Upload form -->
             <form method="POST"
                 action="{{ url_for('admin_upload_master_excel') }}"
@@ -403,7 +461,6 @@
         <!-- ── Candidate Excel Template ───────────────────── -->
         <div class="admin-section fade-in delay-3">
             <h2>📋 Candidate Excel Template</h2>
-
             <!-- File status -->
             <div class="file-info-row">
                 <span style="font-size:1.2rem;">📋</span>
@@ -421,7 +478,6 @@
                     {{ '✓ File present' if template_excel_exists else '✗ File missing' }}
                 </span>
             </div>
-
             <!-- Upload custom template -->
             <form method="POST"
                 action="{{ url_for('admin_upload_excel_template') }}"
@@ -447,7 +503,6 @@
                     </button>
                 </div>
             </form>
-
             <!-- Regenerate from data.json -->
             <div style="display:flex;align-items:center;gap:var(--sp-3);
                 padding:var(--sp-3) var(--sp-4);
@@ -470,7 +525,6 @@
                 </a>
             </div>
         </div>
-
     </div><!-- /.container -->
 
     <!-- Floating controls -->
@@ -515,6 +569,11 @@
         document.getElementById('clearConfirmOverlay').addEventListener('click', function(e) {
             if (e.target === this) hideClearConfirm();
         });
+
+        // Optional: Confirm delete for images (if confirmDelete is used in admin.js)
+        function confirmDelete(image) {
+            return confirm('Delete image ' + image + '?');
+        }
     </script>
 </body>
 </html>
